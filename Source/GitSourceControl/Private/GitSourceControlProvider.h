@@ -50,7 +50,9 @@ public:
 	FGitSourceControlProvider() 
 		: bGitAvailable(false)
 		, bGitRepositoryFound(false)
+		, StatusBranchNamesThreadSafe(MakeShareable(new TArray<FString>))
 	{
+		
 	}
 
 	/* ISourceControlProvider implementation */
@@ -157,6 +159,9 @@ public:
 
 	/** Helper function used to update state cache */
 	TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> GetStateInternal(const FString& Filename);
+
+	/** Helper function used to update state branches */
+	TSharedRef<TArray<FString>, ESPMode::ThreadSafe> GetStatusBranchNamesInternal();
 
 	/**
 	 * Register a worker with the provider.
@@ -286,6 +291,8 @@ private:
 
 	/** Array of branch names for status queries */
 	TArray<FString> StatusBranchNames;
+
+	TSharedRef<TArray<FString>, ESPMode::ThreadSafe> StatusBranchNamesThreadSafe;
 
 	class FGitSourceControlRunner* Runner = nullptr;
 };

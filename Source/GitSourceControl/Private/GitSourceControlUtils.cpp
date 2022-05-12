@@ -2135,6 +2135,88 @@ bool PullOrigin(const FString& InPathToGitBinary, const FString& InPathToReposit
 	return bSuccess;
 }
 
+bool UpdateGitflowBranches(const FString& InPathToGitBinary, const FString& InPathToRepositoryRoot, bool InUsingGitLfsLocking, TArray<FString>& OutResults, TArray<FString>& OutErrorMessages)
+{
+	{
+		TArray<FString> Results, ErrorMessages, Parameters;
+		Parameters.Push(TEXT("update"));
+		Parameters.Push(TEXT("origin"));
+		Parameters.Push(TEXT("--prune"));
+		if (!RunCommand(TEXT("remote"), InPathToGitBinary, InPathToRepositoryRoot, Parameters, FGitSourceControlModule::GetEmptyStringArray(), Results, ErrorMessages))
+		{
+			return false;
+		}
+	}
+
+	TArray<FString> Results;
+	{
+		TArray<FString> ErrorMessages, Parameters;
+		Parameters.Push(TEXT("-a"));
+		if (!RunCommand(TEXT("branch"), InPathToGitBinary, InPathToRepositoryRoot, Parameters, FGitSourceControlModule::GetEmptyStringArray(), Results, ErrorMessages))
+		{
+			return false;
+		}
+	}
+
+	const FString RemotePrefix = TEXT("remotes/");
+	const FString HeadPrefix = TEXT("remotes/origin/HEAD");
+
+	// All the remote branches that we track
+	const TArray<FString> TrackedRemoteBranchPrefixes = {
+		TEXT("origin/bugfix/"),
+		TEXT("origin/hotfix/"),
+		TEXT("origin/feature/"),
+		TEXT("origin/release/")
+	};
+
+	// Sort the existing remote branches by prefix
+	TArray<TArray<FString>> TrackedBranches;
+	TrackedBranches.SetNum(TrackedRemoteBranchPrefixes.Num());
+	for (auto& Branch : Results)
+	{
+		// Remove whitespaces from branch name
+		Branch = Branch.TrimStartAndEnd();
+
+		// Only track remote branches and don't track head
+		if (Branch.StartsWith(RemotePrefix) && !Branch.StartsWith(HeadPrefix))
+		{
+			// Chop of the remote prefix
+			Branch = Branch.RightChop(RemotePrefix.Len());
+
+			// Check if we should track this branch
+			const int32 Index = TrackedRemoteBranchPrefixes.IndexOfByPredicate([Branch] (const FString& Prefix) { return Branch.StartsWith(Prefix); });
+			if (Index != INDEX_NONE)
+			{
+				TrackedBranches[Index].Push(Branch);
+			}
+		}
+	}
+
+	// Get thread safe temporary container for currently tracked branches
+	FGitSourceControlProvider& Provider = FGitSourceControlModule::Get().GetProvider();
+	const TSharedRef<TArray<FString>, ESPMode::ThreadSafe> StateBranches = Provider.GetStatusBranchNamesInternal();
+
+	// Clear old state branches
+	StateBranches->Empty();
+
+	// Add all prefixed branches
+	for (const auto& BranchType : TrackedBranches)
+	{
+		for (const auto& Branch : BranchType)
+		{
+			StateBranches->Push(Branch);
+		}
+	}
+
+	// Add develop and main branches
+	const FString DevelopmentBranch = TEXT("origin/develop");
+	const FString MainBranch = TEXT("origin/main");
+	StateBranches->Push(DevelopmentBranch);
+	StateBranches->Push(MainBranch);
+	
+	return true;
+}
+	
 } // namespace GitSourceControlUtils
 
 #undef LOCTEXT_NAMESPACE

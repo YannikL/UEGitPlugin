@@ -616,10 +616,21 @@ bool FGitSyncWorker::Execute(FGitSourceControlCommand& InCommand)
 		return false;
 	}
 
+	const bool bGitflowBranchesUpdated = GitSourceControlUtils::UpdateGitflowBranches(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, false, InCommand.ResultInfo.InfoMessages, InCommand.ResultInfo.ErrorMessages);
+	if (!bGitflowBranchesUpdated)
+	{
+		return false;
+	}
+
 	InCommand.bCommandSuccessful = GitSourceControlUtils::PullOrigin(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.Files, InCommand.Files, Results, InCommand.ResultInfo.ErrorMessages);
 
 	// now update the status of our files
 	TMap<FString, FGitSourceControlState> UpdatedStates;
+	if (!GitSourceControlUtils::UpdateGitflowBranches(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking,
+																 InCommand.Files, InCommand.ResultInfo.ErrorMessages))
+	{
+		return false;
+	}
 	const bool bSuccess = GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking,
 																 InCommand.Files, InCommand.ResultInfo.ErrorMessages, UpdatedStates);
 	if (bSuccess)
@@ -673,6 +684,9 @@ bool FGitFetchWorker::Execute(FGitSourceControlCommand& InCommand)
 		TMap<FString, FGitSourceControlState> UpdatedStates;
 		InCommand.bCommandSuccessful = GitSourceControlUtils::RunUpdateStatus(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking,
 																			  ProjectDirs, InCommand.ResultInfo.ErrorMessages, UpdatedStates);
+		TArray<FString> Results;
+		InCommand.bCommandSuccessful |= GitSourceControlUtils::UpdateGitflowBranches(InCommand.PathToGitBinary, InCommand.PathToRepositoryRoot, InCommand.bUsingGitLfsLocking,
+																			  Results, InCommand.ResultInfo.ErrorMessages);
 		GitSourceControlUtils::RemoveRedundantErrors(InCommand, TEXT("' is outside repository"));
 		if (InCommand.bCommandSuccessful)
 		{

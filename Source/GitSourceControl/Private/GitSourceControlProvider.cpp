@@ -235,6 +235,11 @@ TSharedRef<FGitSourceControlState, ESPMode::ThreadSafe> FGitSourceControlProvide
 	}
 }
 
+TSharedRef<TArray<FString>, ESPMode::ThreadSafe> FGitSourceControlProvider::GetStatusBranchNamesInternal()
+{
+	return StatusBranchNamesThreadSafe;
+}
+
 FText FGitSourceControlProvider::GetStatusText() const
 {
 	FFormatNamedArguments Args;
@@ -536,6 +541,13 @@ void FGitSourceControlProvider::Tick()
 	}
 #endif
 
+	// Update state branches
+	if (!StatusBranchNamesThreadSafe.Get().IsEmpty())
+	{
+		StatusBranchNames = *StatusBranchNamesThreadSafe;
+		StatusBranchNamesThreadSafe.Get().Empty();
+	}
+	
 	for (int32 CommandIndex = 0; CommandIndex < CommandQueue.Num(); ++CommandIndex)
 	{
 		FGitSourceControlCommand& Command = *CommandQueue[CommandIndex];
